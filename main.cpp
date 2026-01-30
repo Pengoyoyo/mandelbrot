@@ -2,6 +2,8 @@
 #include "include/mandelbrot.hpp"
 #include <iostream>
 #include <raylib.h>
+#include <thread>
+#include <vector>
 
 Color LerpColor(Color a, Color b, float t) {
   return {(unsigned char)(a.r + (b.r - a.r) * t),
@@ -9,8 +11,9 @@ Color LerpColor(Color a, Color b, float t) {
           (unsigned char)(a.b + (b.b - a.b) * t), 255};
 }
 
-void drawMandelbrot(double maxReal = 1.0, double minReal = -2.5,
-                    double maxImag = 1.25, double minImag = -1.25) {
+void renderStrip(int xStart, int yStart, int xEnd, int yEnd,
+                 std::vector<Color> &pixels, double maxReal, double minReal,
+                 double maxImag, double minImag) {
   using namespace Constants;
 
   double xNorm{};
@@ -18,10 +21,10 @@ void drawMandelbrot(double maxReal = 1.0, double minReal = -2.5,
   double cReal{};
   double cImag{};
 
-  for (int x{}; x <= windowWidth; ++x) {
-    for (int y{}; y <= windowHeight; ++y) {
-      xNorm = x / static_cast<double>(Constants::windowWidth);
-      yNorm = y / static_cast<double>(Constants::windowHeight);
+  for (int x{xStart}; x < xEnd; ++x) {
+    for (int y{yStart}; y < yEnd; ++y) {
+      xNorm = x / static_cast<double>(windowWidth);
+      yNorm = y / static_cast<double>(windowHeight);
 
       cReal = minReal + xNorm * (maxReal - minReal);
       cImag = minImag + yNorm * (maxImag - minImag);
@@ -29,11 +32,11 @@ void drawMandelbrot(double maxReal = 1.0, double minReal = -2.5,
       int iterationsMandelbrot{calculateMandelbrot(cReal, cImag)};
 
       if (iterationsMandelbrot - 1 == maxIterations) {
-        DrawPixel(x, y, BLACK);
+        pixels[static_cast<size_t>(y * windowWidth + x)] = BLACK;
       } else {
         float t = static_cast<float>(iterationsMandelbrot) / maxIterations;
         Color color = LerpColor(BLUE, RED, t);
-        DrawPixel(x, y, color);
+        pixels[static_cast<size_t>(y * windowWidth + x)] = color;
       }
 
       // std::cout << "Iterations: " << iterationsMandelbrot << '\n';
@@ -41,62 +44,90 @@ void drawMandelbrot(double maxReal = 1.0, double minReal = -2.5,
   }
 }
 
+bool checkForRedraw(double &maxReal, double &minReal, double &maxImag,
+                    double &minImag) {
+  using namespace Constants;
+  if (IsKeyPressed(KEY_UP)) {
+    maxImag += 0.1;
+    minImag += 0.1;
+    std::cout << "Runter!" << '\n';
+    return true;
+  }
+  if (IsKeyPressed(KEY_DOWN)) {
+    maxImag -= 0.1;
+    minImag -= 0.1;
+    std::cout << "Hoch!" << '\n';
+    return true;
+  }
+  if (IsKeyPressed(KEY_LEFT)) {
+    maxReal += 0.1;
+    minReal += 0.1;
+    std::cout << "Links!" << '\n';
+    return true;
+  }
+  if (IsKeyPressed(KEY_RIGHT)) {
+    maxReal -= 0.1;
+    minReal -= 0.1;
+    std::cout << "Rechts!" << '\n';
+    return true;
+  }
+  return false;
+}
+
+void reDraw(std::vector<Color> &pixels, double &maxReal, double &minReal,
+            double &maxImag, double &minImag) {
+  using namespace Constants;
+  std::thread t1(renderStrip, 0, 0, windowWidth, windowHeight * 0.25,
+                 std::ref(pixels), maxReal, minReal, maxImag, minImag);
+  std::thread t2(renderStrip, 0, windowHeight * 0.25, windowWidth,
+                 windowHeight * 0.5, std::ref(pixels), maxReal, minReal,
+                 maxImag, minImag);
+  std::thread t3(renderStrip, 0, windowHeight * 0.5, windowWidth,
+                 windowHeight * 0.75, std::ref(pixels), maxReal, minReal,
+                 maxImag, minImag);
+  std::thread t4(renderStrip, 0, windowHeight * 0.75, windowWidth, windowHeight,
+                 std::ref(pixels), maxReal, minReal, maxImag, minImag);
+  t1.join();
+  t2.join();
+  t3.join();
+  t4.join();
+}
+
 int main() {
   double maxReal{1.0};
   double minReal{-2.5};
   double maxImag{1.25};
   double minImag{-1.25};
+  std::vector<Color> pixels(Constants::windowWidth * Constants::windowHeight);
+
   InitWindow(Constants::windowWidth, Constants::windowHeight,
              "Mandelbrot Plot");
   SetTargetFPS(60);
-
-  RenderTexture2D target =
-      LoadRenderTexture(Constants::windowWidth, Constants::windowHeight);
-  bool needsRedraw = true;
+  Texture2D texture{};
+  {
+    Image img =
+        GenImageColor(Constants::windowWidth, Constants::windowHeight, BLACK);
+    texture = LoadTextureFromImage(img);
+    UnloadImage(img);
+  }
+  reDraw(pixels, maxReal, minReal, maxImag, minImag);
+  BeginDrawing();
+  ClearBackground(BLACK);
+  UpdateTexture(texture, pixels.data());
+  DrawTexture(texture, 0, 0, WHITE);
+  EndDrawing();
 
   while (!WindowShouldClose()) {
-    if (IsKeyPressed(KEY_UP)) {
-      maxImag += 0.1;
-      minImag += 0.1;
-      needsRedraw = true;
-      std::cout << "Runter!" << '\n';
-    }
-    if (IsKeyPressed(KEY_DOWN)) {
-      maxImag -= 0.1;
-      minImag -= 0.1;
-      needsRedraw = true;
-      std::cout << "Hoch!" << '\n';
-    }
-    if (IsKeyPressed(KEY_LEFT)) {
-      maxReal += 0.1;
-      minReal += 0.1;
-      needsRedraw = true;
-      std::cout << "Links!" << '\n';
-    }
-    if (IsKeyPressed(KEY_RIGHT)) {
-      maxReal -= 0.1;
-      minReal -= 0.1;
-      needsRedraw = true;
-      std::cout << "Rechts!" << '\n';
-    }
-
-    if (needsRedraw) {
-      BeginTextureMode(target);
-      ClearBackground(RAYWHITE);
-      drawMandelbrot(maxReal, minReal, maxImag, minImag);
-      EndTextureMode();
-      needsRedraw = false;
+    if (checkForRedraw(maxReal, minReal, maxImag, minImag)) {
+      reDraw(pixels, maxReal, minReal, maxImag, minImag);
     }
 
     BeginDrawing();
-    DrawTextureRec(
-        target.texture,
-        {0, 0, (float)target.texture.width, -(float)target.texture.height},
-        {0, 0}, WHITE);
+    ClearBackground(BLACK);
+    UpdateTexture(texture, pixels.data());
+    DrawTexture(texture, 0, 0, WHITE);
     EndDrawing();
   }
-
-  UnloadRenderTexture(target);
   CloseWindow();
   return 0;
 }
