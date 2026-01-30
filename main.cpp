@@ -27,13 +27,9 @@ void drawMandelbrot() {
 
       int iterationsMandelbrot{calculateMandelbrot(cReal, cImag)};
 
-      if (iterationsMandelbrot - 1 == maxIterations) {
-        DrawPixel(x, y, BLACK);
-      } else {
-        float t = static_cast<float>(iterationsMandelbrot) / maxIterations;
-        Color color = LerpColor(BLUE, RED, t);
-        DrawPixel(x, y, color);
-      }
+      float t = static_cast<float>(iterationsMandelbrot) / maxIterations;
+      Color color = LerpColor(BLUE, RED, t);
+      DrawPixel(x, y, color);
       // std::cout << "Iterations: " << iterationsMandelbrot << '\n';
     }
   }
