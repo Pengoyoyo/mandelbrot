@@ -44,7 +44,7 @@ int main() {
              "Mandelbrot Plot");
   SetTargetFPS(60);
 
-  while (!WindowShouldClose()) { // Runs until ESC or window close
+  while (!WindowShouldClose()) {
 
     BeginDrawing();
     ClearBackground(RAYWHITE);
